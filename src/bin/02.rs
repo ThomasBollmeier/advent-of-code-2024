@@ -63,40 +63,33 @@ fn main() -> Result<()> {
 
 fn read_input(reader: impl BufRead) -> Result<Vec<Vec<i32>>> {
 
-    let mut ret = Vec::new();
-
-    for line in reader.lines() {
-        let line = line?;
-        let nums = line.split_whitespace()
+    read_and_transform(reader, |line| {
+        let nums: Vec<i32> = line.split_whitespace()
             .map(|s| s.parse::<i32>().unwrap())
             .collect();
-        ret.push(nums);
-    }
-
-    Ok(ret)
+        Ok(nums)
+    })
 }
 
-fn is_safe(report: &Vec<i32>) -> bool {
+fn is_safe(report: &[i32]) -> bool {
     let increasing = report[0] < report[1];
     let mut delta = (report[1] - report[0]).abs();
 
-    if delta < 1 || delta > 3 {
+    if !(1..=3).contains(&delta) {
         return false;
     }
 
     for i in 1..report.len() - 1 {
         delta = (report[i+1] - report[i]).abs();
-        if delta < 1 || delta > 3 {
+        if !(1..=3).contains(&delta) {
             return false;
         }
         if increasing {
             if report[i] >= report[i+1] {
                 return false;
             }
-        } else {
-            if report[i+1] >= report[i] {
-                return false;
-            }
+        } else if report[i+1] >= report[i] {
+            return false;
         }
     }
 

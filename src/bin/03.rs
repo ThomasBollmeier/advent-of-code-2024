@@ -79,14 +79,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-fn read_lines(reader: impl BufRead) -> Vec<String> {
-    let mut ret = Vec::new();
-
-    for line in reader.lines() {
-        let line = line.unwrap();
-        ret.push(line);
-    }
-
-    ret
-}
