@@ -29,6 +29,8 @@ pub fn read_and_transform<T>(reader: impl BufRead, transformer: fn(&str) -> Resu
 
 // Additional common functions
 
+pub mod grid;
+
 #[cfg(test)]
 mod tests {
     use super::*;

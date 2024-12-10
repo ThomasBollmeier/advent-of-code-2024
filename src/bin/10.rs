@@ -1,4 +1,5 @@
 use adv_code_2024::*;
+use adv_code_2024::grid::*;
 use anyhow::*;
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
@@ -6,7 +7,6 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
 
 const DAY: &str = "10";
 const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
@@ -62,44 +62,13 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, EnumIter, Clone)]
-enum Direction {
-    North,
-    South,
-    East,
-    West,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Position(i32, i32);
-
-impl Position {
-    fn new(x: i32, y: i32) -> Self {
-        Self(x, y)
-    }
-
-    fn walk(&self, direction: Direction) -> Self {
-        match direction {
-            Direction::North => Self(self.0 - 1, self.1),
-            Direction::South => Self(self.0 + 1, self.1),
-            Direction::East => Self(self.0, self.1 + 1),
-            Direction::West => Self(self.0, self.1 - 1),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Map {
-    num_rows: i32,
-    num_cols: i32,
-    heights: Vec<Vec<i32>>,
+    grid: Grid<i32>,
 }
 
 impl Map {
-    fn is_valid(&self, pos: &Position) -> bool {
-        (0..self.num_rows).contains(&pos.0) && (0..self.num_cols).contains(&pos.1)
-    }
-
+    
     fn find_trail_ends(&self, start: &Position, height: i32) -> HashSet<Position> {
         if height == 9 {
             let mut ret = HashSet::new();
@@ -110,11 +79,11 @@ impl Map {
         let mut ret = HashSet::new();
 
         for direction in Direction::iter() {
-            let next_pos = start.walk(direction);
-            if !self.is_valid(&next_pos) {
+            let next_pos = start.make_step(&direction);
+            if !self.grid.is_valid_position(&next_pos) {
                 continue;
             }
-            let next_height = self.heights[next_pos.0 as usize][next_pos.1 as usize];
+            let next_height = self.grid.cells[next_pos.row() as usize][next_pos.col() as usize];
             if next_height != height + 1 {
                 continue;
             }
@@ -130,9 +99,9 @@ impl Map {
     fn count_scores(&self) -> usize {
         let mut total = 0;
 
-        for row in 0..self.num_rows {
-            for col in 0..self.num_cols {
-                let height = self.heights[row as usize][col as usize];
+        for row in 0..self.grid.num_rows {
+            for col in 0..self.grid.num_cols {
+                let height = self.grid.cells[row as usize][col as usize];
                 if height == 0 {
                     let trail_ends = self.find_trail_ends(&Position::new(row, col), height);
                     total += trail_ends.len();
@@ -146,9 +115,9 @@ impl Map {
     fn count_ratings(&self) -> usize {
         let mut total = 0;
 
-        for row in 0..self.num_rows {
-            for col in 0..self.num_cols {
-                let height = self.heights[row as usize][col as usize];
+        for row in 0..self.grid.num_rows {
+            for col in 0..self.grid.num_cols {
+                let height = self.grid.cells[row as usize][col as usize];
                 if height == 0 {
                     total += self.find_trail_ratings(&Position::new(row, col), height);
                 }
@@ -166,11 +135,11 @@ impl Map {
         let mut ret = 0;
 
         for direction in Direction::iter() {
-            let next_pos = start.walk(direction);
-            if !self.is_valid(&next_pos) {
+            let next_pos = start.make_step(&direction);
+            if !self.grid.is_valid_position(&next_pos) {
                 continue;
             }
-            let next_height = self.heights[next_pos.0 as usize][next_pos.1 as usize];
+            let next_height = self.grid.cells[next_pos.row() as usize][next_pos.col() as usize];
             if next_height != height + 1 {
                 continue;
             }
@@ -196,8 +165,10 @@ fn read_map<R: BufRead>(reader: R) -> Map {
     }
 
     Map {
-        num_rows,
-        num_cols,
-        heights,
+        grid: Grid{
+            num_rows,
+            num_cols,
+            cells: heights,
+        },
     }
 }
