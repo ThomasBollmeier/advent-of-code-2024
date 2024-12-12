@@ -15,11 +15,11 @@ impl Position {
     pub fn new(x: i32, y: i32) -> Self {
         Self(x, y)
     }
-    
+
     pub fn row(&self) -> i32 {
         self.0
     }
-    
+
     pub fn col(&self) -> i32 {
         self.1
     }
@@ -43,10 +43,15 @@ pub struct Grid<T> {
 }
 
 impl<T> Grid<T> {
-    
     pub fn is_valid_position(&self, position: &Position) -> bool {
         (0..self.num_rows).contains(&position.0) && (0..self.num_cols).contains(&position.1)
     }
-    
+
+    pub fn value_at(&self, position: &Position) -> Option<&T> {
+        if self.is_valid_position(position) {
+            Some(&self.cells[position.row() as usize][position.col() as usize])
+        } else {
+            None
+        }
+    }
 }
- 

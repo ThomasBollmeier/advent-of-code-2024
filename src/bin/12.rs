@@ -1,13 +1,13 @@
-use std::collections::{HashMap, HashSet};
+use adv_code_2024::grid::{Direction, Grid, Position};
+use adv_code_2024::*;
 use anyhow::*;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
 use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use strum::IntoEnumIterator;
-use adv_code_2024::*;
-use adv_code_2024::grid::{Direction, Grid, Position};
 
 const DAY: &str = "12";
 const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
@@ -34,8 +34,11 @@ fn main() -> Result<()> {
     fn part1<R: BufRead>(reader: R) -> Result<usize> {
         let grid = read_grid(reader);
         let regions = find_regions(&grid);
-        let answer = regions.regions.values()
-            .map(|r| { r.area * r.perimeter }).sum::<usize>();
+        let answer = regions
+            .regions
+            .values()
+            .map(|r| r.area * r.perimeter)
+            .sum::<usize>();
 
         Ok(answer)
     }
@@ -55,8 +58,11 @@ fn main() -> Result<()> {
         let mut regions = find_regions(&grid);
         update_corner_counts(&mut regions, &grid);
 
-        let answer = regions.regions.values()
-            .map(|r| { r.area * r.num_corners }).sum::<usize>();
+        let answer = regions
+            .regions
+            .values()
+            .map(|r| r.area * r.num_corners)
+            .sum::<usize>();
 
         Ok(answer)
     }
@@ -103,13 +109,13 @@ fn update_corner_counts(regions: &mut Regions, grid: &Grid<char>) {
     for row in 0..=grid.num_rows {
         for col in 0..=grid.num_cols {
             let pos = Position::new(row, col);
-            let corner_regions: Vec<usize> = [pos.clone(),
-                pos.make_step(&North),
-                pos.make_step(&West),
-                pos.make_step(&North).make_step(&West)]
+            let north = pos.make_step(&North);
+            let west = pos.make_step(&West);
+            let nw = north.make_step(&West);
+            let corner_regions: Vec<usize> = [pos.clone(), north.clone(), west.clone(), nw.clone()]
                 .iter()
                 .filter(|p| region_grid.is_valid_position(p))
-                .map(|p| &region_grid.cells[p.row() as usize][p.col() as usize])
+                .map(|p| region_grid.value_at(p).unwrap())
                 .cloned()
                 .collect();
             let mut corner_stats = HashMap::new();
@@ -120,6 +126,15 @@ fn update_corner_counts(regions: &mut Regions, grid: &Grid<char>) {
                 if cnt == 1 || cnt == 3 {
                     let region = regions.regions.get_mut(&id).unwrap();
                     region.num_corners += 1;
+                } else if cnt == 2 {
+                    if region_grid.value_at(&pos).is_some_and(|x| *x == id)
+                        && region_grid.value_at(&nw).is_some_and(|x| *x == id)
+                        || region_grid.value_at(&west).is_some_and(|x| *x == id)
+                            && region_grid.value_at(&north).is_some_and(|x| *x == id)
+                    {
+                        let region = regions.regions.get_mut(&id).unwrap();
+                        region.num_corners += 2;
+                    }
                 }
             }
         }
@@ -183,24 +198,22 @@ fn find_region(grid: &Grid<char>, start: &Position, visited: &mut HashSet<Positi
         positions,
         area,
         perimeter,
-        num_corners: 0
+        num_corners: 0,
     }
 }
 
 fn find_unvisited_pos(grid: &Grid<char>, visited: &HashSet<Position>) -> Option<Position> {
     for row in 0..grid.num_rows {
-       for col in 0..grid.num_cols {
-           let pos = Position::new(row, col);
-           if !visited.contains(&pos) {
-               return Some(pos);
-           }
-       }
+        for col in 0..grid.num_cols {
+            let pos = Position::new(row, col);
+            if !visited.contains(&pos) {
+                return Some(pos);
+            }
+        }
     }
 
     None
 }
-
-
 
 fn read_grid(reader: impl BufRead) -> Grid<char> {
     let lines = read_lines(reader);
