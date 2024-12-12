@@ -1,6 +1,6 @@
 use strum_macros::EnumIter;
 
-#[derive(Debug, EnumIter, Clone)]
+#[derive(Debug, EnumIter, Clone, Eq, PartialEq, Hash)]
 pub enum Direction {
     North,
     South,
