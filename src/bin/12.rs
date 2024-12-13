@@ -3,7 +3,6 @@ use adv_code_2024::*;
 use anyhow::*;
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
-use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -126,15 +125,11 @@ fn update_corner_counts(regions: &mut Regions, grid: &Grid<char>) {
                 if cnt == 1 || cnt == 3 {
                     let region = regions.regions.get_mut(&id).unwrap();
                     region.num_corners += 1;
-                } else if cnt == 2 {
-                    if region_grid.value_at(&pos).is_some_and(|x| *x == id)
-                        && region_grid.value_at(&nw).is_some_and(|x| *x == id)
-                        || region_grid.value_at(&west).is_some_and(|x| *x == id)
-                            && region_grid.value_at(&north).is_some_and(|x| *x == id)
-                    {
-                        let region = regions.regions.get_mut(&id).unwrap();
-                        region.num_corners += 2;
-                    }
+                } else if cnt == 2 && (region_grid.value_at(&pos).is_some_and(|x| *x == id)
+                        && region_grid.value_at(&nw).is_some_and(|x| *x == id) || region_grid.value_at(&west).is_some_and(|x| *x == id)
+                            && region_grid.value_at(&north).is_some_and(|x| *x == id)) {
+                    let region = regions.regions.get_mut(&id).unwrap();
+                    region.num_corners += 2;
                 }
             }
         }
