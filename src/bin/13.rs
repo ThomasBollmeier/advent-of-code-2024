@@ -1,10 +1,13 @@
+use adv_code_2024::*;
 use anyhow::*;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
-use adv_code_2024::*;
+use mathru::algebra::linear::matrix::{General, Solve};
+use mathru::algebra::linear::vector::Vector;
+use mathru::{matrix, vector};
 use regex::Regex;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 const DAY: &str = "13";
 const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
@@ -38,7 +41,7 @@ fn main() -> Result<()> {
         let mut total = 0_usize;
 
         for machine in machines {
-            if let Some(costs) = machine.optimize_winning_costs() {
+            if let Some(costs) = machine.optimize_winning_costs_2() {
                 total += costs;
             }
         }
@@ -70,11 +73,11 @@ fn main() -> Result<()> {
         Ok(total)
     }
 
-    assert_eq!(0, part2(BufReader::new(TEST.as_bytes()))?);
-    //
-    // let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    // let result = time_snippet!(part2(input_file)?);
-    // println!("Result = {}", result);
+    //assert_eq!(0, part2(BufReader::new(TEST.as_bytes()))?);
+
+    let input_file = BufReader::new(File::open(INPUT_FILE)?);
+    let result = time_snippet!(part2(input_file)?);
+    println!("Result = {}", result);
     //endregion
 
     Ok(())
@@ -97,7 +100,6 @@ impl Button {
 struct Prize {
     x: usize,
     y: usize,
-
 }
 
 impl Prize {
@@ -115,7 +117,11 @@ struct Machine {
 
 impl Machine {
     fn new(a: &Button, b: &Button, prize: &Prize) -> Machine {
-        Machine { a: a.clone(), b: b.clone(), prize: prize.clone() }
+        Machine {
+            a: a.clone(),
+            b: b.clone(),
+            prize: prize.clone(),
+        }
     }
 
     fn increase_prize_coords(&mut self, amount: usize) {
@@ -124,33 +130,30 @@ impl Machine {
     }
 
     fn optimize_winning_costs_2(&self) -> Option<usize> {
-        let mut solutions = Vec::new();
-        let mut cnt_a = 0_usize;
-        let a = &self.a;
-        let b = &self.b;
+        let btn_a = &self.a;
+        let btn_b = &self.b;
         let prize = &self.prize;
 
-        loop {
-            let x = cnt_a * a.x;
-            let y = cnt_a * a.y;
-            if x > prize.x || y > prize.y {
-                break;
+        let m: General<f64> = matrix![
+          btn_a.x as f64, btn_b.x as f64;
+          btn_a.y as f64, btn_b.y as f64];
+
+        let b: Vector<f64> = vector![prize.x as f64; prize.y as f64];
+
+        let solution = m.solve(&b);
+
+        if solution.is_ok() {
+            let solution = solution.unwrap();
+            let cnt_a = solution[0].round() as usize;
+            let cnt_b = solution[1].round() as usize;
+            let x = cnt_a * btn_a.x + cnt_b * btn_b.x;
+            let y = cnt_a * btn_a.y + cnt_b * btn_b.y;
+
+            if x == prize.x && y == prize.y {
+                Some(cnt_a * btn_a.cost + cnt_b * btn_b.cost)
+            } else {
+                None
             }
-
-            let cnt_b_x = ((prize.x - x) as f64 / b.x as f64).floor() as usize;
-            let cnt_b_y = ((prize.y - y) as f64 / b.y as f64).floor() as usize;
-
-            if cnt_b_x == cnt_b_y && cnt_a * a.x + cnt_b_x * b.x == prize.x
-            && cnt_a * a.y + cnt_b_y * b.y == prize.y {
-                solutions.push((cnt_a, cnt_b_x, cnt_a * a.cost + cnt_b_x * b.cost));
-            }
-
-            cnt_a += 1;
-        }
-
-        if !solutions.is_empty() {
-            solutions.sort_by(|a, b| a.2.cmp(&b.2));
-            Some(solutions[0].2)
         } else {
             None
         }
