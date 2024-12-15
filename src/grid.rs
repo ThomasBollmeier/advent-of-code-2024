@@ -43,6 +43,10 @@ pub struct Grid<T> {
 }
 
 impl<T> Grid<T> {
+    pub fn new(num_rows: i32, num_cols: i32, cells: Vec<Vec<T>>) -> Self {
+        Self { num_rows, num_cols, cells }
+    }
+    
     pub fn is_valid_position(&self, position: &Position) -> bool {
         (0..self.num_rows).contains(&position.0) && (0..self.num_cols).contains(&position.1)
     }
@@ -52,6 +56,12 @@ impl<T> Grid<T> {
             Some(&self.cells[position.row() as usize][position.col() as usize])
         } else {
             None
+        }
+    }
+    
+    pub fn set_value_at(&mut self, position: &Position, value: T) {
+        if self.is_valid_position(position) {
+            self.cells[position.row() as usize][position.col() as usize] = value;
         }
     }
 }
