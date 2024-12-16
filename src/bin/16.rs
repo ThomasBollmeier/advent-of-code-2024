@@ -1,15 +1,14 @@
+use adv_code_2024::grid::{Direction, Grid, Position};
+use adv_code_2024::*;
 use anyhow::*;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
-use itertools::Itertools;
-use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Reverse;
-use adv_code_2024::*;
-use adv_code_2024::grid::{Direction, Grid, Position};
+use std::collections::{BinaryHeap, HashMap};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
-const DAY: &str = "16"; 
+const DAY: &str = "16";
 const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
 
 const TEST: &str = "\
@@ -30,6 +29,26 @@ const TEST: &str = "\
 ###############
 ";
 
+const TEST2: &str = "\
+#################
+#...#...#...#..E#
+#.#.#.#.#.#.#.#.#
+#.#.#.#...#...#.#
+#.#.#.#.###.#.#.#
+#...#.#.#.....#.#
+#.#.#.#.#.#####.#
+#.#...#.#.#.....#
+#.#.#####.#.###.#
+#.#.#.......#...#
+#.#.###.#####.###
+#.#.#...#.....#.#
+#.#.#.#####.###.#
+#.#.#.........#.#
+#.#.#.#########.#
+#S#.............#
+#################
+";
+
 fn main() -> Result<()> {
     start_day(DAY);
 
@@ -38,17 +57,22 @@ fn main() -> Result<()> {
 
     fn part1<R: BufRead>(reader: R) -> Result<usize> {
         let maze = read_maze(reader)?;
-        
-        maze.print();
-        
-        Ok(0)
+
+        match maze.dijkstra(
+            State::new(maze.start_pos.clone(), Direction::East),
+            &maze.end_pos,
+        ) {
+            Some(cost) => Ok(cost),
+            None => Err(anyhow!("No solution found")),
+        }
     }
 
     assert_eq!(7036, part1(BufReader::new(TEST.as_bytes()))?);
+    assert_eq!(11048, part1(BufReader::new(TEST2.as_bytes()))?);
 
-    //let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    //let result = time_snippet!(part1(input_file)?);
-    //println!("Result = {}", result);
+    let input_file = BufReader::new(File::open(INPUT_FILE)?);
+    let result = time_snippet!(part1(input_file)?);
+    println!("Result = {}", result);
     //endregion
 
     //region Part 2
@@ -78,12 +102,21 @@ impl State {
     fn new(position: Position, facing: Direction) -> Self {
         Self { position, facing }
     }
-    
+
     fn next_states(&self) -> Vec<(State, usize)> {
         vec![
-            (State::new(self.position.make_step(&self.facing), self.facing.clone()), 1),
-            (State::new(self.position.clone(), self.facing.turn_left()), 1000),
-            (State::new(self.position.clone(), self.facing.turn_right()), 1000),
+            (
+                State::new(self.position.make_step(&self.facing), self.facing.clone()),
+                1,
+            ),
+            (
+                State::new(self.position.clone(), self.facing.turn_left()),
+                1000,
+            ),
+            (
+                State::new(self.position.clone(), self.facing.turn_right()),
+                1000,
+            ),
         ]
     }
 }
@@ -93,7 +126,7 @@ enum Cell {
     Empty,
     Wall,
     Start,
-    End
+    End,
 }
 
 #[derive(Debug, Clone)]
@@ -105,9 +138,14 @@ struct Maze {
 
 impl Maze {
     fn new(grid: Grid<Cell>, start_pos: Position, end_pos: Position) -> Maze {
-        Maze { grid, start_pos, end_pos }
+        Maze {
+            grid,
+            start_pos,
+            end_pos,
+        }
     }
-    
+
+    #[allow(dead_code)]
     fn print(&self) {
         for row in 0..self.grid.num_rows {
             for col in 0..self.grid.num_cols {
@@ -125,7 +163,6 @@ impl Maze {
     }
 
     fn dijkstra(&self, start: State, goal: &Position) -> Option<usize> {
-        
         let mut priority_queue = BinaryHeap::new();
         let mut distances: HashMap<State, usize> = HashMap::new();
 
@@ -163,9 +200,20 @@ impl Maze {
     /// Placeholder for the `get_next_states` function.
     /// Replace this with your actual implementation.
     fn get_next_states(&self, state: &State) -> Vec<(State, usize)> {
-        vec![] // Return a vector of (next_state, cost) pairs.
-    }
+        let mut ret = Vec::new();
+        for (st, cost) in state.next_states() {
+            if !self.grid.is_valid_position(&st.position) {
+                continue;
+            }
+            let cell = self.grid.value_at(&st.position).unwrap();
+            if let Cell::Wall = *cell {
+                continue;
+            }
+            ret.push((st, cost));
+        }
 
+        ret
+    }
 }
 
 fn read_maze(reader: impl BufRead) -> Result<Maze> {
@@ -173,7 +221,7 @@ fn read_maze(reader: impl BufRead) -> Result<Maze> {
     let mut start_pos: Option<Position> = None;
     let mut end_pos: Option<Position> = None;
     let mut cells = Vec::new();
-    
+
     for (row, line) in lines.into_iter().enumerate() {
         let mut cell_row = Vec::new();
         for (col, ch) in line.chars().enumerate() {
@@ -185,25 +233,25 @@ fn read_maze(reader: impl BufRead) -> Result<Maze> {
                         return Err(anyhow!("there can be only one start"));
                     }
                     start_pos = Some(Position::new(row as i32, col as i32));
-                },
+                }
                 'E' => {
                     cell_row.push(Cell::End);
                     if end_pos.is_some() {
                         return Err(anyhow!("there can be only one end"));
                     }
                     end_pos = Some(Position::new(row as i32, col as i32));
-                },
+                }
                 _ => cell_row.push(Cell::Empty),
             }
         }
         cells.push(cell_row);
     }
-    
+
     let num_rows = cells.len() as i32;
     let num_cols = cells[0].len() as i32;
     let grid = Grid::new(num_rows, num_cols, cells);
-    
+
     let maze = Maze::new(grid, start_pos.unwrap(), end_pos.unwrap());
-    
+
     Ok(maze)
 }
