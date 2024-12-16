@@ -253,12 +253,10 @@ impl Maze {
         }
 
         // Return the minimal cost and all paths to the goal.
-        let goal_states = vec![
-            Direction::East,
+        let goal_states = [Direction::East,
             Direction::West,
             Direction::North,
-            Direction::South,
-        ]
+            Direction::South]
         .iter()
         .map(|direction| State::new(goal.clone(), direction.clone()))
         .filter(|st| distances.contains_key(st))
@@ -266,8 +264,7 @@ impl Maze {
 
         let min_goal_cost = goal_states
             .iter()
-            .flat_map(|st| distances.get(st))
-            .map(|x| *x)
+            .flat_map(|st| distances.get(st)).copied()
             .min();
 
         if min_goal_cost.is_none() {
