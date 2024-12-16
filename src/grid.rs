@@ -1,6 +1,6 @@
 use strum_macros::EnumIter;
 
-#[derive(Debug, EnumIter, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, EnumIter, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum Direction {
     North,
     South,
@@ -8,7 +8,27 @@ pub enum Direction {
     West,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+impl Direction {
+    pub fn turn_right(&self) -> Direction {
+        match self {
+            Direction::North => Direction::East,
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+        }
+    }
+    
+    pub fn turn_left(&self) -> Direction {
+        match self {  
+            Direction::North => Direction::West,
+            Direction::West => Direction::South,
+            Direction::South => Direction::East,
+            Direction::East => Direction::North,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct Position(i32, i32);
 
 impl Position {
