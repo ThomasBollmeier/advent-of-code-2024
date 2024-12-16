@@ -4,7 +4,7 @@ use anyhow::*;
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
@@ -76,17 +76,29 @@ fn main() -> Result<()> {
     //endregion
 
     //region Part 2
-    // println!("\n=== Part 2 ===");
-    //
-    // fn part2<R: BufRead>(reader: R) -> Result<usize> {
-    //     Ok(0)
-    // }
-    //
-    // assert_eq!(0, part2(BufReader::new(TEST.as_bytes()))?);
-    //
-    // let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    // let result = time_snippet!(part2(input_file)?);
-    // println!("Result = {}", result);
+    println!("\n=== Part 2 ===");
+
+    fn part2<R: BufRead>(reader: R) -> Result<usize> {
+        let maze = read_maze(reader)?;
+
+        match maze.dijkstra_with_all_paths(
+            State::new(maze.start_pos.clone(), Direction::East),
+            &maze.end_pos,
+        ) {
+            (Some(_), paths) => {
+                //maze.print_with_paths(&paths);
+                let positions = get_num_affected_positions(&paths);
+                Ok(positions.len())
+            }
+            (None, _) => Err(anyhow!("No solution found")),
+        }
+    }
+
+    assert_eq!(45, part2(BufReader::new(TEST.as_bytes()))?);
+
+    let input_file = BufReader::new(File::open(INPUT_FILE)?);
+    let result = time_snippet!(part2(input_file)?);
+    println!("Result = {}", result);
     //endregion
 
     Ok(())
@@ -120,6 +132,8 @@ impl State {
         ]
     }
 }
+
+type Path = Vec<State>;
 
 #[derive(Debug, Clone)]
 enum Cell {
@@ -160,6 +174,118 @@ impl Maze {
             }
             println!();
         }
+    }
+
+    #[allow(dead_code)]
+    fn print_with_paths(&self, paths: &[Path]) {
+        let positions = get_num_affected_positions(paths);
+        for row in 0..self.grid.num_rows {
+            for col in 0..self.grid.num_cols {
+                let pos = Position::new(row, col);
+                if positions.contains(&pos) {
+                    print!("O");
+                } else {
+                    let cell = self.grid.value_at(&pos).unwrap();
+                    match cell {
+                        Cell::Empty => print!("."),
+                        Cell::Wall => print!("#"),
+                        Cell::Start => print!("S"),
+                        Cell::End => print!("E"),
+                    }
+                }
+            }
+            println!();
+        }
+    }
+
+    fn dijkstra_with_all_paths(&self, start: State, goal: &Position) -> (Option<usize>, Vec<Path>) {
+        let mut priority_queue = BinaryHeap::new();
+        // A HashMap to store the minimum cost to reach each position.
+        let mut distances: HashMap<State, usize> = HashMap::new();
+        // A HashMap to store all minimal-cost paths to each position.
+        let mut paths: HashMap<State, Vec<Path>> = HashMap::new();
+
+        // Initialize the start state with a cost of 0 and an initial path.
+        distances.insert(start.clone(), 0);
+        paths.insert(start.clone(), vec![vec![start.clone()]]);
+        priority_queue.push(Reverse((0, start.clone(), vec![start.clone()])));
+
+        while let Some(Reverse((current_cost, current_state, current_path))) = priority_queue.pop()
+        {
+            // If we already processed this state with a lower cost, skip it.
+            if current_cost > *distances.get(&current_state).unwrap_or(&usize::MAX) {
+                continue;
+            }
+
+            // If we reached the goal, continue collecting paths.
+            if current_state.position == *goal {
+                paths
+                    .entry(current_state.clone())
+                    .or_default()
+                    .push(current_path.clone());
+                continue;
+            }
+
+            // Get next states and their costs.
+            for (next_state, additional_cost) in self.get_next_states(&current_state) {
+                let new_cost = current_cost + additional_cost;
+                let prev_cost = distances.get(&next_state).cloned().unwrap_or(usize::MAX);
+
+                if new_cost <= prev_cost {
+                    if new_cost < prev_cost {
+                        // Found a cheaper path, update the distance and reset paths.
+                        distances.insert(next_state.clone(), new_cost);
+                        paths.insert(next_state.clone(), vec![]);
+                    }
+
+                    // Add this path to the list of minimal-cost paths for `next_state`.
+                    let mut new_path = current_path.clone();
+                    new_path.push(next_state.clone());
+                    paths
+                        .entry(next_state.clone())
+                        .or_default()
+                        .push(new_path.clone());
+
+                    // Push the next state into the priority queue.
+                    priority_queue.push(Reverse((new_cost, next_state, new_path)));
+                }
+            }
+        }
+
+        // Return the minimal cost and all paths to the goal.
+        let goal_states = vec![
+            Direction::East,
+            Direction::West,
+            Direction::North,
+            Direction::South,
+        ]
+        .iter()
+        .map(|direction| State::new(goal.clone(), direction.clone()))
+        .filter(|st| distances.contains_key(st))
+        .collect::<Vec<State>>();
+
+        let min_goal_cost = goal_states
+            .iter()
+            .flat_map(|st| distances.get(st))
+            .map(|x| *x)
+            .min();
+
+        if min_goal_cost.is_none() {
+            return (None, vec![]);
+        }
+        let min_goal_cost = min_goal_cost.unwrap();
+
+        let min_goal_states = goal_states
+            .into_iter()
+            .filter(|st| *distances.get(st).unwrap() == min_goal_cost)
+            .collect::<Vec<State>>();
+
+        let mut all_paths = vec![];
+        for goal_state in min_goal_states {
+            all_paths.append(&mut paths.get(&goal_state).unwrap().clone());
+        }
+
+        (Some(min_goal_cost), all_paths)
     }
 
     fn dijkstra(&self, start: State, goal: &Position) -> Option<usize> {
@@ -214,6 +340,16 @@ impl Maze {
 
         ret
     }
+}
+
+fn get_num_affected_positions(paths: &[Path]) -> HashSet<Position> {
+    let mut positions: HashSet<Position> = HashSet::new();
+    for path in paths {
+        for state in path {
+            positions.insert(state.position.clone());
+        }
+    }
+    positions
 }
 
 fn read_maze(reader: impl BufRead) -> Result<Maze> {
