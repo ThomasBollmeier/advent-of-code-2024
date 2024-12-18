@@ -1,9 +1,12 @@
+use std::fmt::{Debug, Display, Formatter};
 use adv_code_2024::*;
 use anyhow::*;
 use code_timing_macros::time_snippet;
 use const_format::concatcp;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use itertools::Itertools;
+use crate::Instruction::{Adv, Bdv, Bst, Bxl, Bxz, Cdv, Jnz, Out};
 
 const DAY: &str = "17";
 const INPUT_FILE: &str = concatcp!("input/", DAY, ".txt");
@@ -26,7 +29,7 @@ fn main() -> Result<()> {
         let (mut interpreter, program) = read_evaluation_setup(reader)?;
         let output = interpreter.run(&program)?;
 
-        Ok(output)
+        Ok(output.iter().join(","))
     }
 
     assert_eq!(
@@ -34,26 +37,54 @@ fn main() -> Result<()> {
         part1(BufReader::new(TEST.as_bytes()))?
     );
 
-    let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    let result = time_snippet!(part1(input_file)?);
-    println!("Result = {}", result);
+    //let input_file = BufReader::new(File::open(INPUT_FILE)?);
+    //let result = time_snippet!(part1(input_file)?);
+    //println!("Result = {}", result);
     //endregion
 
     //region Part 2
-    // println!("\n=== Part 2 ===");
+    println!("\n=== Part 2 ===");
+
+    fn part2<R: BufRead>(reader: R) -> Result<usize> {
+        use Instruction::*;
+        let program = vec![Bst(4),
+            Bxl(7),
+            Cdv(5),
+            Adv(3),
+            Bxz(4),
+            Bxl(7),
+            Out(5)];
+
+        let _expected_outputs = [2,4,1,7,7,5,0,3,4,4,1,7,5,5,3,0];
+
+        dbg!(find_as_with_output(&program, 2));
+        
+        //let (_, program) = read_evaluation_setup(reader)?;
+
+        Ok(0)
+    }
     //
-    // fn part2<R: BufRead>(reader: R) -> Result<usize> {
-    //     Ok(0)
-    // }
+    //assert_eq!(0, part2(BufReader::new(TEST.as_bytes()))?);
     //
-    // assert_eq!(0, part2(BufReader::new(TEST.as_bytes()))?);
-    //
-    // let input_file = BufReader::new(File::open(INPUT_FILE)?);
-    // let result = time_snippet!(part2(input_file)?);
-    // println!("Result = {}", result);
+    let input_file = BufReader::new(File::open(INPUT_FILE)?);
+    let result = time_snippet!(part2(input_file)?);
+    println!("Result = {}", result);
     //endregion
 
     Ok(())
+}
+
+fn find_as_with_output(program: &Program, expected: usize) -> Vec<(usize, usize)> {
+    let mut ret = vec![]; 
+    for a in 0..0b1_000_000_000_usize {
+        let mut interpreter = Interpreter::new(a, 0, 0);
+        let outputs = interpreter.run(program).unwrap();
+        if outputs[0] == expected {
+            ret.push((a % 8, a / 8));
+        }
+    }
+    
+    ret
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,14 +99,30 @@ enum Instruction {
     Cdv(usize),
 }
 
+impl Instruction {
+    fn to_opcode(&self) -> (usize, usize) {
+        match self {
+            Adv(i) => (0, *i),
+            Bxl(i) => (1, *i),
+            Bst(i) => (2, *i),
+            Jnz(i) => (3, *i),
+            Bxz(i) => (4, *i),
+            Out(i) => (5, *i),
+            Bdv(i) => (6, *i),
+            Cdv(i) => (7, *i),
+        }
+    }
+}
+
 type Program = Vec<Instruction>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Interpreter {
     a: usize,
     b: usize,
     c: usize,
-    output: String,
+    output: Vec<usize>,
+    debug: bool
 }
 
 impl Interpreter {
@@ -84,17 +131,21 @@ impl Interpreter {
             a,
             b,
             c,
-            output: String::new(),
+            output: vec![],
+            debug: false
         }
     }
 
-    fn run(&mut self, program: &Program) -> Result<String> {
+    fn run(&mut self, program: &Program) -> Result<Vec<usize>> {
         self.clear_output();
 
         let mut ip = 0;
         while ip < program.len() {
             let instruction = &program[ip];
             ip = self.apply_instruction(ip, instruction)?;
+            if self.debug {
+                dbg!(instruction, &self);
+            }
         }
 
         Ok(self.output.clone())
@@ -108,7 +159,7 @@ impl Interpreter {
                 Ok(ip + 1)
             }
             Bxl(operand) => {
-                self.b = self.literal(*operand)? ^ self.b;
+                self.b ^= self.literal(*operand)?;
                 Ok(ip + 1)
             }
             Bst(operand) => {
@@ -123,7 +174,7 @@ impl Interpreter {
                 }
             }
             Bxz(_) => {
-                self.b = self.b ^ self.c;
+                self.b ^= self.c;
                 Ok(ip + 1)
             }
             Out(operand) => {
@@ -152,11 +203,7 @@ impl Interpreter {
     }
 
     fn write(&mut self, value: usize) {
-        let value_str = value.to_string();
-        if !self.output.is_empty() {
-            self.output.push(',');
-        }
-        self.output.push_str(&value_str);
+        self.output.push(value);
     }
 
     fn literal(&self, value: usize) -> Result<usize> {
@@ -206,18 +253,30 @@ fn read_evaluation_setup(reader: impl BufRead) -> Result<(Interpreter, Program)>
         let operand = &chunk[1];
 
         let instruction = match op {
-            0 => Instruction::Adv(*operand),
-            1 => Instruction::Bxl(*operand),
-            2 => Instruction::Bst(*operand),
-            3 => Instruction::Jnz(*operand),
-            4 => Instruction::Bxz(*operand),
-            5 => Instruction::Out(*operand),
-            6 => Instruction::Bdv(*operand),
-            7 => Instruction::Cdv(*operand),
+            0 => Adv(*operand),
+            1 => Bxl(*operand),
+            2 => Bst(*operand),
+            3 => Jnz(*operand),
+            4 => Bxz(*operand),
+            5 => Out(*operand),
+            6 => Bdv(*operand),
+            7 => Cdv(*operand),
             _ => return Err(anyhow!("invalid operator")),
         };
         program.push(instruction);
     }
 
     Ok((interpreter, program))
+}
+
+impl Display for Interpreter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a={:b}\nb={:b}\nc={:b}", self.a, self.b, self.c)
+    }
+}
+
+impl Debug for Interpreter  {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "a={:b}\nb={:b}\nc={:b}", self.a, self.b, self.c)
+    }
 }
