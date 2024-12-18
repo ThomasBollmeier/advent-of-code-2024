@@ -74,16 +74,22 @@ fn main() -> Result<()> {
         let memory = read_memory(reader, num_rows, num_cols);
         let start = State::new(Position::new(0, 0));
         let goal = Position::new((num_rows - 1) as i32, (num_cols - 1) as i32);
-        let mut time = 0;
+        let mut time_min = 0;
+        let mut time_max = memory.max_time;
 
         loop {
+            if time_max - time_min <= 1 {
+                let blocking_pos = memory.find_cell(time_max).unwrap();
+                return Ok(format!("{},{}", blocking_pos.col(), blocking_pos.row()));
+            }
+
+            let time = (time_min + time_max) / 2;
             match memory.dijkstra(start.clone(), &goal, time) {
                 Some(_) => {
-                    time += 1;
+                    time_min = time;
                 }
                 None => {
-                    let blocking_pos = memory.find_cell(time).unwrap();
-                    return Ok(format!("{},{}", blocking_pos.col(), blocking_pos.row()));
+                    time_max = time;
                 }
             }
         }
@@ -122,11 +128,12 @@ impl State {
 #[derive(Debug, Clone)]
 struct Memory {
     grid: Grid<usize>,
+    max_time: usize,
 }
 
 impl Memory {
-    fn new(grid: Grid<usize>) -> Self {
-        Self { grid }
+    fn new(grid: Grid<usize>, max_time: usize) -> Self {
+        Self { grid, max_time }
     }
 
     #[allow(dead_code)]
@@ -223,5 +230,5 @@ fn read_memory<R: BufRead>(reader: R, num_rows: usize, num_cols: usize) -> Memor
 
     let grid = Grid::new(num_rows as i32, num_cols as i32, cells);
 
-    Memory::new(grid)
+    Memory::new(grid, lines.len())
 }
