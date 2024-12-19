@@ -108,11 +108,10 @@ impl Problem {
             .common_prefix_search(design)
             .collect::<Vec<String>>();
 
-        let mut count = 0;
-
-        for pattern in patterns {
-            count += self.count_possible_designs(&design[pattern.len()..], cache);
-        }
+        let count = patterns
+            .iter()
+            .map(|p| self.count_possible_designs(&design[p.len()..], cache))
+            .sum();
 
         cache.insert(design.to_string(), count);
         count
